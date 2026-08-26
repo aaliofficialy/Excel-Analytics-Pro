@@ -11,7 +11,4 @@ Updated dashboard with full export capabilities directly for GitHub Pages.
 6. **JPEG Image**: High-quality compressed dashboard screenshot export.
 7. **CSV Data**: Raw filtered data download.
 
-## How to Deploy on GitHub Pages
-1. Download & extract `github_pages_dashboard_v2.zip`.
-2. Push `index.html` and `README.md` to your GitHub repo.
-3. Go to **Settings > Pages**, choose `main` branch, and save.
+
