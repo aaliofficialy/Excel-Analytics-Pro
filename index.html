@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Excel Analytics Dashboard</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- SheetJS (XLSX Parser) CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- html2canvas CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- jsPDF CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.05);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(100, 116, 139, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(100, 116, 139, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-full flex flex-col font-sans antialiased transition-colors duration-200">
+
+    <header class="bg-slate-800/80 backdrop-blur border-b border-slate-700/60 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                    <i class="fa-solid fa-chart-line text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+                        Excel Analytics Pro
+                        <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">This Project Design by MA Pages Ready</span>
+                    </h1>
+                    <p class="text-xs text-slate-400" id="fileInfoText">Loaded: Default Demo Dataset</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div id="sheetSelectorContainer" class="hidden">
+                    <select id="sheetSelector" onchange="switchSheet(this.value)" class="bg-slate-700 border border-slate-600 text-slate-200 text-xs rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </select>
+                </div>
+
+                <label for="excelFileInput" class="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs px-4 py-2 rounded-lg flex items-center gap-2 transition shadow-md shadow-emerald-600/20">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Upload Excel File</span>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+
+                <button onclick="loadDemoData()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white font-medium text-xs px-3 py-2 rounded-lg transition" title="Reload Demo Data">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="dashboardContainer" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <div id="dropZone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 bg-slate-800/40 hover:bg-slate-800/80 rounded-2xl p-6 transition text-center cursor-pointer relative" onclick="document.getElementById('excelFileInput').click()">
+            <div class="flex flex-col items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-3xl text-emerald-400"></i>
+                <div class="text-sm font-medium text-slate-200">Drag & Drop your Excel (`.xlsx`, `.xls`, `.csv`) file here</div>
+                <div class="text-xs text-slate-400">Automatic schema detection, KPI aggregation, and interactive chart visualization</div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-4 flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+                <div class="relative flex-1 min-w-[200px]">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search records..." class="w-full bg-slate-900/80 border border-slate-700 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400">Group By:</span>
+                    <select id="groupBySelect" onchange="renderDashboard()" class="bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400">Value Column:</span>
+                    <select id="metricSelect" onchange="renderDashboard()" class="bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </select>
+                </div>
+            </div>
+
+            <!-- Multi-Format Export Dropdown -->
+            <div class="relative inline-block text-left">
+                <button onclick="toggleExportMenu()" class="bg-emerald-600 hover:bg-emerald-500 text-xs text-white font-medium px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-md shadow-emerald-600/20">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Export Data / Report</span>
+                    <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                </button>
+
+                <div id="exportMenu" class="hidden absolute right-0 mt-2 w-48 rounded-xl bg-slate-800 border border-slate-700 shadow-2xl z-50 overflow-hidden py-1">
+                    <button onclick="exportData('excel')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-excel text-emerald-400 w-4"></i> Excel (.xlsx)
+                    </button>
+                    <button onclick="exportData('word')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-word text-blue-400 w-4"></i> Word Document (.doc)
+                    </button>
+                    <button onclick="exportData('pdf')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-pdf text-red-400 w-4"></i> PDF Document (.pdf)
+                    </button>
+                    <button onclick="exportData('ppt')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-powerpoint text-amber-500 w-4"></i> PowerPoint (.ppt)
+                    </button>
+                    <div class="border-t border-slate-700/60 my-1"></div>
+                    <button onclick="exportData('png')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-image text-purple-400 w-4"></i> PNG Screenshot
+                    </button>
+                    <button onclick="exportData('jpg')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-image text-teal-400 w-4"></i> JPEG Screenshot
+                    </button>
+                    <button onclick="exportData('csv')" class="w-full text-left px-4 py-2.5 text-xs text-slate-200 hover:bg-slate-700/60 flex items-center gap-2.5">
+                        <i class="fa-solid fa-file-csv text-slate-400 w-4"></i> CSV Data (.csv)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="kpiGrid">
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Total Rows</span>
+                    <i class="fa-solid fa-database text-emerald-400"></i>
+                </div>
+                <div class="mt-2 text-2xl font-bold text-white" id="kpiTotalRows">0</div>
+                <div class="mt-1 text-xs text-slate-400" id="kpiTotalRowsSub">Parsed entries</div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Total Value Sum</span>
+                    <i class="fa-solid fa-sack-dollar text-teal-400"></i>
+                </div>
+                <div class="mt-2 text-2xl font-bold text-white" id="kpiTotalSum">0</div>
+                <div class="mt-1 text-xs text-slate-400" id="kpiMetricName">Selected metric aggregation</div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Average Value</span>
+                    <i class="fa-solid fa-calculator text-cyan-400"></i>
+                </div>
+                <div class="mt-2 text-2xl font-bold text-white" id="kpiAverage">0</div>
+                <div class="mt-1 text-xs text-slate-400">Per record average</div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Unique Categories</span>
+                    <i class="fa-solid fa-layer-group text-indigo-400"></i>
+                </div>
+                <div class="mt-2 text-2xl font-bold text-white" id="kpiCategoryCount">0</div>
+                <div class="mt-1 text-xs text-slate-400" id="kpiGroupColName">Distinct groups</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white">Group Aggregation Breakdown</h3>
+                        <p class="text-xs text-slate-400">Sum of selected value column grouped by selected category</p>
+                    </div>
+                    <i class="fa-solid fa-chart-simple text-emerald-400"></i>
+                </div>
+                <div class="h-64 relative">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white">Share of Distribution</h3>
+                        <p class="text-xs text-slate-400">Percentage breakdown across categories</p>
+                    </div>
+                    <i class="fa-solid fa-chart-pie text-teal-400"></i>
+                </div>
+                <div class="h-64 relative flex justify-center">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white">Top 10 High Performers</h3>
+                        <p class="text-xs text-slate-400">Ranked by total metric value</p>
+                    </div>
+                    <i class="fa-solid fa-ranking-star text-amber-400"></i>
+                </div>
+                <div class="h-64 relative">
+                    <canvas id="topBarChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-5">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-sm font-semibold text-white">Sequential / Trend Profile</h3>
+                        <p class="text-xs text-slate-400">Data sequence distribution curve</p>
+                    </div>
+                    <i class="fa-solid fa-chart-line text-cyan-400"></i>
+                </div>
+                <div class="h-64 relative">
+                    <canvas id="lineChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-700/60 flex items-center justify-between">
+                <div>
+                    <h3 class="text-sm font-semibold text-white">Data Analysis Explorer</h3>
+                    <p class="text-xs text-slate-400" id="tableRecordCount">Showing 0 rows</p>
+                </div>
+                <div class="flex items-center gap-2 text-xs">
+                    <button onclick="prevPage()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition text-slate-200">Prev</button>
+                    <span id="pageIndicator" class="text-slate-400">Page 1</span>
+                    <button onclick="nextPage()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded transition text-slate-200">Next</button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-96">
+                <table class="w-full text-left text-xs text-slate-300" id="analyticsTable">
+                    <thead class="bg-slate-900/90 text-slate-400 font-semibold uppercase sticky top-0 z-10 border-b border-slate-700">
+                        <tr id="tableHeaderRow">
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-700/40">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="bg-slate-800/40 border-t border-slate-800 py-4 mt-8 text-center text-xs text-slate-500">
+        Excel Dashboard for GitHub Pages • Built with Chart.js & SheetJS • Multi-Format Export Supported
+    </footer>
+
+    <script>
+        let currentWorkbook = null;
+        let rawData = [];
+        let filteredData = [];
+        let categoricalCols = [];
+        let numericCols = [];
+        let charts = {};
+        let currentPage = 1;
+        const pageSize = 15;
+
+        const sampleData = [
+            { "Region": "North America", "Category": "Electronics", "Sales": 14500, "Profit": 3200, "Units": 120 },
+            { "Region": "Europe", "Category": "Electronics", "Sales": 18200, "Profit": 4100, "Units": 150 },
+            { "Region": "Asia Pacific", "Category": "Electronics", "Sales": 22100, "Profit": 5600, "Units": 210 },
+            { "Region": "Latin America", "Category": "Furniture", "Sales": 8900, "Profit": 1200, "Units": 85 },
+            { "Region": "North America", "Category": "Furniture", "Sales": 12400, "Profit": 2100, "Units": 110 },
+            { "Region": "Europe", "Category": "Office Supplies", "Sales": 9600, "Profit": 1800, "Units": 300 },
+            { "Region": "Asia Pacific", "Category": "Office Supplies", "Sales": 15400, "Profit": 3100, "Units": 420 },
+            { "Region": "Middle East", "Category": "Electronics", "Sales": 11200, "Profit": 2400, "Units": 95 },
+            { "Region": "Middle East", "Category": "Furniture", "Sales": 6700, "Profit": 900, "Units": 60 },
+            { "Region": "Latin America", "Category": "Office Supplies", "Sales": 7800, "Profit": 1400, "Units": 250 }
+        ];
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initDragAndDrop();
+            loadDemoData();
+
+            window.addEventListener('click', function(e) {
+                const menu = document.getElementById('exportMenu');
+                if (!e.target.closest('#exportMenu') && !e.target.closest('button[onclick="toggleExportMenu()"]')) {
+                    menu.classList.add('hidden');
+                }
+            });
+        });
+
+        function toggleExportMenu() {
+            const menu = document.getElementById('exportMenu');
+            menu.classList.toggle('hidden');
+        }
+
+        function loadDemoData() {
+            document.getElementById('fileInfoText').textContent = "Loaded: Default Demo Dataset";
+            document.getElementById('sheetSelectorContainer').classList.add('hidden');
+            processDataset(sampleData);
+        }
+
+        function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.getElementById('fileInfoText').textContent = `File: ${file.name}`;
+            
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = new Uint8Array(evt.target.result);
+                    currentWorkbook = XLSX.read(data, { type: 'array' });
+                    
+                    const sheetNames = currentWorkbook.SheetNames;
+                    const selector = document.getElementById('sheetSelector');
+                    selector.innerHTML = '';
+                    
+                    sheetNames.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        selector.appendChild(opt);
+                    });
+
+                    if (sheetNames.length > 1) {
+                        document.getElementById('sheetSelectorContainer').classList.remove('hidden');
+                    } else {
+                        document.getElementById('sheetSelectorContainer').classList.add('hidden');
+                    }
+
+                    switchSheet(sheetNames[0]);
+                } catch (err) {
+                    alert("Error parsing Excel file. Please ensure it is a valid .xlsx or .csv file.");
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function switchSheet(sheetName) {
+            if (!currentWorkbook) return;
+            const worksheet = currentWorkbook.Sheets[sheetName];
+            const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+            if (json.length === 0) {
+                alert("Selected sheet is empty!");
+                return;
+            }
+            processDataset(json);
+        }
+
+        function initDragAndDrop() {
+            const dropZone = document.getElementById('dropZone');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            dropZone.addEventListener('dragover', () => {
+                dropZone.classList.add('border-emerald-500', 'bg-slate-800');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('border-emerald-500', 'bg-slate-800');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                dropZone.classList.remove('border-emerald-500', 'bg-slate-800');
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length > 0) {
+                    document.getElementById('excelFileInput').files = files;
+                    handleFileUpload({ target: { files: files } });
+                }
+            });
+        }
+
+        function processDataset(data) {
+            rawData = data;
+            filteredData = [...rawData];
+
+            if (data.length === 0) return;
+
+            const keys = Object.keys(data[0]);
+            categoricalCols = [];
+            numericCols = [];
+
+            keys.forEach(key => {
+                let isNum = true;
+                let numCount = 0;
+
+                for (let i = 0; i < Math.min(data.length, 50); i++) {
+                    const val = data[i][key];
+                    if (val !== "" && val !== null && val !== undefined) {
+                        if (!isNaN(Number(val))) {
+                            numCount++;
+                        } else {
+                            isNum = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (isNum && numCount > 0) {
+                    numericCols.push(key);
+                } else {
+                    categoricalCols.push(key);
+                }
+            });
+
+            if (categoricalCols.length === 0) categoricalCols = [keys[0]];
+            if (numericCols.length === 0) numericCols = [keys[keys.length - 1]];
+
+            const groupSelect = document.getElementById('groupBySelect');
+            const metricSelect = document.getElementById('metricSelect');
+
+            groupSelect.innerHTML = keys.map(k => `<option value="${k}">${k}</option>`).join('');
+            metricSelect.innerHTML = numericCols.map(k => `<option value="${k}">${k}</option>`).join('');
+
+            groupSelect.value = categoricalCols[0] || keys[0];
+            metricSelect.value = numericCols[0] || keys[keys.length - 1];
+
+            renderDashboard();
+        }
+
+        function applyFilters() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!query) {
+                filteredData = [...rawData];
+            } else {
+                filteredData = rawData.filter(row => {
+                    return Object.values(row).some(val => 
+                        String(val).toLowerCase().includes(query)
+                    );
+                });
+            }
+            currentPage = 1;
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            const groupCol = document.getElementById('groupBySelect').value;
+            const metricCol = document.getElementById('metricSelect').value;
+
+            updateKPIs(groupCol, metricCol);
+            const grouped = aggregateData(filteredData, groupCol, metricCol);
+            renderCharts(grouped, groupCol, metricCol);
+            renderTable();
+        }
+
+        function aggregateData(data, groupCol, metricCol) {
+            const map = {};
+            data.forEach(row => {
+                const groupVal = String(row[groupCol] || "Unspecified");
+                const numVal = parseFloat(row[metricCol]) || 0;
+
+                if (!map[groupVal]) {
+                    map[groupVal] = 0;
+                }
+                map[groupVal] += numVal;
+            });
+
+            const labels = Object.keys(map);
+            const values = Object.values(map);
+
+            return { labels, values };
+        }
+
+        function updateKPIs(groupCol, metricCol) {
+            const totalRows = filteredData.length;
+            const sum = filteredData.reduce((acc, row) => acc + (parseFloat(row[metricCol]) || 0), 0);
+            const avg = totalRows > 0 ? (sum / totalRows) : 0;
+
+            const uniqueGroups = new Set(filteredData.map(r => String(r[groupCol]))).size;
+
+            document.getElementById('kpiTotalRows').textContent = totalRows.toLocaleString();
+            document.getElementById('kpiTotalSum').textContent = formatCurrency(sum);
+            document.getElementById('kpiAverage').textContent = formatCurrency(avg);
+            document.getElementById('kpiCategoryCount').textContent = uniqueGroups.toLocaleString();
+
+            document.getElementById('kpiMetricName').textContent = `Metric: ${metricCol}`;
+            document.getElementById('kpiGroupColName').textContent = `Grouped by: ${groupCol}`;
+        }
+
+        function formatCurrency(val) {
+            if (Math.abs(val) >= 1000000) {
+                return (val / 1000000).toFixed(2) + 'M';
+            } else if (Math.abs(val) >= 1000) {
+                return (val / 1000).toFixed(1) + 'k';
+            }
+            return val.toFixed(2);
+        }
+
+        function renderCharts(grouped, groupCol, metricCol) {
+            const chartColors = [
+                '#22c55e', '#14b8a6', '#06b6d4', '#6366f1', 
+                '#a855f7', '#ec4899', '#f59e0b', '#ef4444'
+            ];
+
+            Object.keys(charts).forEach(key => {
+                if (charts[key]) charts[key].destroy();
+            });
+
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            charts.bar = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: grouped.labels,
+                    datasets: [{
+                        label: metricCol,
+                        data: grouped.values,
+                        backgroundColor: '#22c55e',
+                        borderRadius: 6
+                    }]
+                },
+                options: getChartOptions()
+            });
+
+            const ctxDoughnut = document.getElementById('doughnutChart').getContext('2d');
+            charts.doughnut = new Chart(ctxDoughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: grouped.labels,
+                    datasets: [{
+                        data: grouped.values,
+                        backgroundColor: chartColors
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } }
+                    }
+                }
+            });
+
+            const combined = grouped.labels.map((l, i) => ({ label: l, val: grouped.values[i] }));
+            combined.sort((a, b) => b.val - a.val);
+            const top10 = combined.slice(0, 10);
+
+            const ctxTopBar = document.getElementById('topBarChart').getContext('2d');
+            charts.topBar = new Chart(ctxTopBar, {
+                type: 'bar',
+                data: {
+                    labels: top10.map(d => d.label),
+                    datasets: [{
+                        label: metricCol,
+                        data: top10.map(d => d.val),
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 6
+                    }]
+                },
+                options: { ...getChartOptions(), indexAxis: 'y' }
+            });
+
+            const ctxLine = document.getElementById('lineChart').getContext('2d');
+            charts.line = new Chart(ctxLine, {
+                type: 'line',
+                data: {
+                    labels: grouped.labels,
+                    datasets: [{
+                        label: metricCol,
+                        data: grouped.values,
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 4
+                    }]
+                },
+                options: getChartOptions()
+            });
+        }
+
+        function getChartOptions() {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#94a3b8', font: { size: 10 } },
+                        grid: { color: 'rgba(51, 65, 85, 0.4)' }
+                    },
+                    y: {
+                        ticks: { color: '#94a3b8', font: { size: 10 } },
+                        grid: { color: 'rgba(51, 65, 85, 0.4)' }
+                    }
+                }
+            };
+        }
+
+        function renderTable() {
+            if (filteredData.length === 0) {
+                document.getElementById('tableHeaderRow').innerHTML = `<th class="p-4 text-center">No Data Available</th>`;
+                document.getElementById('tableBody').innerHTML = ``;
+                return;
+            }
+
+            const keys = Object.keys(filteredData[0]);
+
+            document.getElementById('tableHeaderRow').innerHTML = keys.map(k => `
+                <th class="px-4 py-3 border-b border-slate-700 font-medium">${k}</th>
+            `).join('');
+
+            const start = (currentPage - 1) * pageSize;
+            const end = start + pageSize;
+            const pageData = filteredData.slice(start, end);
+
+            document.getElementById('tableBody').innerHTML = pageData.map(row => `
+                <tr class="hover:bg-slate-700/30 transition">
+                    ${keys.map(k => `<td class="px-4 py-2.5 whitespace-nowrap text-slate-300">${row[k] !== undefined ? row[k] : ''}</td>`).join('')}
+                </tr>
+            `).join('');
+
+            const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
+            document.getElementById('pageIndicator').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('tableRecordCount').textContent = `Showing ${filteredData.length} records`;
+        }
+
+        function nextPage() {
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTable();
+            }
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTable();
+            }
+        }
+
+        // Multi-format export logic
+        function exportData(format) {
+            document.getElementById('exportMenu').classList.add('hidden');
+            if (filteredData.length === 0) {
+                alert("No data available to export!");
+                return;
+            }
+
+            if (format === 'excel') {
+                const worksheet = XLSX.utils.json_to_sheet(filteredData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Analytics");
+                XLSX.writeFile(workbook, 'analytics_export.xlsx');
+            } 
+            else if (format === 'csv') {
+                const worksheet = XLSX.utils.json_to_sheet(filteredData);
+                const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+                downloadBlob(csvOutput, 'analytics_export.csv', 'text/csv;charset=utf-8;');
+            }
+            else if (format === 'word') {
+                const keys = Object.keys(filteredData[0]);
+                let headerHTML = keys.map(k => `<th style="border: 1px solid #cccccc; padding: 6px; background-color: #f2f2f2;">${k}</th>`).join('');
+                let rowsHTML = filteredData.map(row => 
+                    `<tr>${keys.map(k => `<td style="border: 1px solid #cccccc; padding: 6px;">${row[k] !== undefined ? row[k] : ''}</td>`).join('')}</tr>`
+                ).join('');
+
+                const docContent = `
+                    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                    <head><title>Analytics Data Report</title><style>body { font-family: Arial; } table { border-collapse: collapse; width: 100%; }</style></head>
+                    <body>
+                        <h2>Analytics Data Summary Report</h2>
+                        <table border="1">${headerHTML}${rowsHTML}</table>
+                    </body>
+                    </html>
+                `;
+                downloadBlob(docContent, 'analytics_report.doc', 'application/msword');
+            }
+            else if (format === 'ppt') {
+                const docContent = `
+                    <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:p='urn:schemas-microsoft-com:office:powerpoint' xmlns='http://www.w3.org/TR/REC-html40'>
+                    <head><title>Executive Data Presentation</title></head>
+                    <body style="font-family: Arial; padding: 20px;">
+                        <div style="width: 800px; height: 600px; border: 1px solid #ccc; padding: 40px; box-sizing: border-box;">
+                            <h1>Executive Analytics Summary</h1>
+                            <h3>Total Records: ${filteredData.length}</h3>
+                            <p>Exported automatically from Excel Analytics Dashboard.</p>
+                        </div>
+                    </body>
+                    </html>
+                `;
+                downloadBlob(docContent, 'analytics_presentation.ppt', 'application/vnd.ms-powerpoint');
+            }
+            else if (format === 'png' || format === 'jpg') {
+                const dashboard = document.getElementById('dashboardContainer');
+                html2canvas(dashboard, { backgroundColor: '#0f172a', scale: 2 }).then(canvas => {
+                    const mimeType = format === 'png' ? 'image/png' : 'image/jpeg';
+                    const link = document.createElement('a');
+                    link.download = `analytics_dashboard.${format}`;
+                    link.href = canvas.toDataURL(mimeType, 0.95);
+                    link.click();
+                });
+            }
+            else if (format === 'pdf') {
+                const dashboard = document.getElementById('dashboardContainer');
+                html2canvas(dashboard, { backgroundColor: '#0f172a', scale: 2 }).then(canvas => {
+                    const imgData = canvas.toDataURL('image/png');
+                    const { jsPDF } = window.jspdf;
+                    const pdf = new jsPDF('p', 'mm', 'a4');
+                    const imgWidth = 210;
+                    const pageHeight = 297;
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                    let heightLeft = imgHeight;
+                    let position = 0;
+
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        pdf.addPage();
+                        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+                    }
+
+                    pdf.save('analytics_report.pdf');
+                });
+            }
+        }
+
+        function downloadBlob(content, filename, contentType) {
+            const blob = new Blob([content], { type: contentType });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', filename);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
